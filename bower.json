@@ -1,19 +1,18 @@
 {
-  "name": "Shareproc-Frontend",
-  "description": "BPMN modelling for the cloud",
-  "version": "0.0.0",
+  "name": "bpmn-js-baardl",
+  "version": "0.14.1-SNAPSHOT",
   "homepage": "https://dev.sharproc.com",
   "license": "MIT",
   "private": true,
   "dependencies": {
-    "angular": "~1.4.0",
-    "angular-route": "~1.4.0",
-    "angular-loader": "~1.4.0",
-    "angular-mocks": "~1.4.0",
-    "html5-boilerplate": "~5.2.0",
-    "bpmn-js-baardl": "0.14.1-SNAPSHOT",
-    "diagram-js": "^0.13.0",
-    "shareproc-custom-bpmn": "0.2.0-SNAPSHOT"
+    "bpmn-moddle": "^0.11.0",
+    "diagram-js": "^0.14.0",
+    "diagram-js-direct-editing": "^0.14.0",
+    "ids": "^0.2.0",
+    "inherits": "^2.0.1",
+    "lodash": "^3.0.1",
+    "min-dom": "^0.2.0",
+    "object-refs": "^0.1.1"
 
   }
 }
