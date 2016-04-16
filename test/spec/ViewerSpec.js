@@ -2,7 +2,11 @@
 
 var TestContainer = require('mocha-test-container-support');
 
+var Diagram = require('diagram-js/lib/Diagram');
+
 var Viewer = require('../../lib/Viewer');
+
+var inherits = require('inherits');
 
 
 describe('Viewer', function() {
@@ -44,14 +48,27 @@ describe('Viewer', function() {
       // mimic re-import of same diagram
       viewer.importXML(xml, function(err, warnings) {
 
+        if (err) {
+          return done(err);
+        }
+
         // then
-        expect(err).to.exist;
         expect(warnings.length).to.equal(0);
 
         done();
       });
 
     });
+  });
+
+
+  it('should be instance of Diagram', function() {
+
+    // when
+    var viewer = new Viewer({ container: container });
+
+    // then
+    expect(viewer).to.be.instanceof(Diagram);
   });
 
 
@@ -68,45 +85,6 @@ describe('Viewer', function() {
         expect(viewer.container.parentNode).to.equal(document.body);
 
         done(err, warnings);
-      });
-    });
-
-  });
-
-
-  describe('import events', function() {
-
-    it('should fire <import.*> events', function(done) {
-
-      // given
-      var viewer = new Viewer({ container: container });
-
-      var xml = require('../fixtures/bpmn/simple.bpmn');
-
-      var events = [];
-
-      viewer.on('import.start', function() {
-        events.push('import.start');
-      });
-
-      viewer.on('import.success', function() {
-        events.push('import.success');
-      });
-
-      viewer.on('import.error', function() {
-        events.push('import.error');
-      });
-
-      // when
-      viewer.importXML(xml, function(err) {
-
-        // then
-        expect(events).to.eql([
-          'import.start',
-          'import.success'
-        ]);
-
-        done(err);
       });
     });
 
@@ -257,7 +235,7 @@ describe('Viewer', function() {
 
   describe('dependency injection', function() {
 
-    it('should be available via di as <bpmnjs>', function(done) {
+    it('should provide self as <bpmnjs>', function(done) {
 
       var xml = require('../fixtures/bpmn/simple.bpmn');
 
@@ -269,6 +247,48 @@ describe('Viewer', function() {
       });
     });
 
+
+    it('should allow Diagram#get before import', function() {
+
+      // when
+      var viewer = new Viewer({ container: container });
+
+      // then
+      var eventBus = viewer.get('eventBus');
+
+      expect(eventBus).to.exist;
+    });
+
+
+    it('should keep references to services across re-import', function(done) {
+
+      // given
+      var someXML = require('../fixtures/bpmn/simple.bpmn'),
+          otherXML = require('../fixtures/bpmn/basic.bpmn');
+
+      var viewer = new Viewer({ container: container });
+
+      var eventBus = viewer.get('eventBus'),
+          canvas = viewer.get('canvas');
+
+      // when
+      viewer.importXML(someXML, function() {
+
+        // then
+        expect(viewer.get('canvas')).to.equal(canvas);
+        expect(viewer.get('eventBus')).to.equal(eventBus);
+
+        viewer.importXML(otherXML, function() {
+
+          // then
+          expect(viewer.get('canvas')).to.equal(canvas);
+          expect(viewer.get('eventBus')).to.equal(eventBus);
+
+          done();
+        });
+      });
+
+    });
   });
 
 
@@ -323,10 +343,10 @@ describe('Viewer', function() {
           done();
         });
       });
-      
+
     });
-    
-    
+
+
     it('should export svg', function(done) {
 
       // given
@@ -531,13 +551,123 @@ describe('Viewer', function() {
         var extensionElements = sendTask.extensionElements;
 
         // receive task should be moddle extended
-        expect(sendTask.$instanceOf('camunda:ServiceTaskLike')).to.exist;
+        expect(sendTask.$instanceOf('camunda:ServiceTaskLike')).to.be.true;
 
         // extension elements should provide typed element
         expect(extensionElements).to.exist;
 
         expect(extensionElements.values.length).to.equal(1);
-        expect(extensionElements.values[0].$instanceOf('camunda:InputOutput')).to.exist;
+        expect(extensionElements.values[0].$instanceOf('camunda:InputOutput')).to.be.true;
+
+        done(err);
+      });
+
+    });
+
+
+    it('should allow to add default custom moddle extensions', function(done) {
+
+      // given
+      var xml = require('../fixtures/bpmn/extension/custom.bpmn'),
+          additionalModdleDescriptors = {
+            custom: require('../fixtures/json/model/custom')
+          };
+
+      function CustomViewer(options) {
+        Viewer.call(this, options);
+      }
+
+      inherits(CustomViewer, Viewer);
+
+      CustomViewer.prototype._moddleExtensions = additionalModdleDescriptors;
+
+      viewer = new CustomViewer({
+        container: container,
+        moddleExtensions: {
+          camunda: camundaPackage
+        }
+      });
+
+      // when
+      viewer.importXML(xml, function(err, warnings) {
+
+        var elementRegistry = viewer.get('elementRegistry');
+
+        var taskShape = elementRegistry.get('send'),
+            sendTask = taskShape.businessObject;
+
+        // then
+        expect(sendTask).to.exist;
+
+        var extensionElements = sendTask.extensionElements;
+
+        // receive task should be moddle extended
+        expect(sendTask.$instanceOf('camunda:ServiceTaskLike')).to.be.true;
+        expect(sendTask.$instanceOf('custom:ServiceTaskGroup')).to.be.true;
+
+        // extension elements should provide typed element
+        expect(extensionElements).to.exist;
+
+        expect(extensionElements.values.length).to.equal(2);
+        expect(extensionElements.values[0].$instanceOf('camunda:InputOutput')).to.be.true;
+
+        expect(extensionElements.values[1].$instanceOf('custom:CustomSendElement')).to.be.true;
+
+        done(err);
+      });
+
+    });
+
+
+    it('should allow user to override default custom moddle extensions', function(done) {
+
+      // given
+      var xml = require('../fixtures/bpmn/extension/custom-override.bpmn'),
+          additionalModdleDescriptors = {
+            custom: require('../fixtures/json/model/custom')
+          },
+          customOverride = require('../fixtures/json/model/custom-override');
+
+      function CustomViewer(options) {
+        Viewer.call(this, options);
+      }
+
+      inherits(CustomViewer, Viewer);
+
+      CustomViewer.prototype._moddleExtensions = additionalModdleDescriptors;
+
+      viewer = new CustomViewer({
+        container: container,
+        moddleExtensions: {
+          camunda: camundaPackage,
+          custom : customOverride
+        }
+      });
+
+      // when
+      viewer.importXML(xml, function(err, warnings) {
+
+        var elementRegistry = viewer.get('elementRegistry');
+
+        var taskShape = elementRegistry.get('send'),
+            sendTask = taskShape.businessObject;
+
+        // then
+        expect(sendTask).to.exist;
+
+        var extensionElements = sendTask.extensionElements;
+
+        // receive task should be moddle extended
+        expect(sendTask.$instanceOf('camunda:ServiceTaskLike')).to.be.true;
+        expect(sendTask.$instanceOf('custom:ServiceTaskGroupOverride')).to.be.true;
+
+        // extension elements should provide typed element
+        expect(extensionElements).to.exist;
+
+        expect(extensionElements.values.length).to.equal(2);
+        expect(extensionElements.values[0].$instanceOf('camunda:InputOutput')).to.be.true;
+
+        expect(extensionElements.values[1].$instanceOf('custom:CustomSendElementOverride')).to.be.true;
 
         done(err);
       });
@@ -596,6 +726,69 @@ describe('Viewer', function() {
   });
 
 
+  describe('#importXML', function() {
+
+    it('should emit <import.*> events', function(done) {
+
+      // given
+      var viewer = new Viewer({ container: container });
+
+      var xml = require('../fixtures/bpmn/simple.bpmn');
+
+      var events = [];
+
+      viewer.on([
+        'import.parse.start',
+        'import.parse.complete',
+        'import.render.start',
+        'import.render.complete',
+        'import.done'
+      ], function(e) {
+        // log event type + event arguments
+        events.push([
+          e.type,
+          Object.keys(e).filter(function(key) {
+            return key !== 'type';
+          })
+        ]);
+      });
+
+      // when
+      viewer.importXML(xml, function(err) {
+
+        // then
+        expect(events).to.eql([
+          [ 'import.parse.start', [ 'xml' ] ],
+          [ 'import.parse.complete', ['error', 'definitions', 'context' ] ],
+          [ 'import.render.start', [ 'definitions' ] ],
+          [ 'import.render.complete', [ 'error', 'warnings' ] ],
+          [ 'import.done', [ 'error', 'warnings' ] ]
+        ]);
+
+        done(err);
+      });
+    });
+
+
+    it('should work without callback', function(done) {
+
+      // given
+      var viewer = new Viewer({ container: container });
+
+      var xml = require('../fixtures/bpmn/simple.bpmn');
+
+      // when
+      viewer.importXML(xml);
+
+      // then
+      viewer.on('import.done', function(event) {
+        done();
+      });
+    });
+
+  });
+
+
   describe('#on', function() {
 
     it('should fire with given three', function(done) {
@@ -617,6 +810,68 @@ describe('Viewer', function() {
         var result = eventBus.fire('foo');
 
         expect(result).to.equal('bar');
+
+        done();
+      });
+
+    });
+
+  });
+
+
+  describe('#off', function() {
+
+    var xml = require('../fixtures/bpmn/simple.bpmn');
+
+    it('should remove listener permanently', function(done) {
+
+      // given
+      var viewer = new Viewer({ container: container });
+
+      var handler = function() {
+        return 'bar';
+      };
+
+      viewer.on('foo', 1000, handler);
+
+      // when
+      viewer.off('foo');
+
+      // then
+      viewer.importXML(xml, function(err) {
+        var eventBus = viewer.get('eventBus');
+
+        var result = eventBus.fire('foo');
+
+        expect(result).not.to.exist;
+
+        done();
+      });
+
+    });
+
+
+    it('should remove listener on existing diagram instance', function(done) {
+
+      // given
+      var viewer = new Viewer({ container: container });
+
+      var handler = function() {
+        return 'bar';
+      };
+
+      viewer.on('foo', 1000, handler);
+
+      // when
+      viewer.importXML(xml, function(err) {
+        var eventBus = viewer.get('eventBus');
+
+        // when
+        viewer.off('foo', handler);
+
+        var result = eventBus.fire('foo');
+
+        expect(result).not.to.exist;
 
         done();
       });
