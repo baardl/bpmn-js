@@ -64,13 +64,13 @@
     "watchify": "^3.7.0"
   },
   "dependencies": {
-    "bpmn-moddle": "^0.11.0",
-    "diagram-js": "^0.14.0",
-    "diagram-js-direct-editing": "^0.14.0",
+    "bpmn-moddle": "^3.0.0",
+    "diagram-js": "^0.29.0",
+    "diagram-js-direct-editing": "^0.23.0",
     "diagram-js-origin": "^0.13.0",
     "ids": "^0.2.0",
     "inherits": "^2.0.1",
-    "lodash": "^3.0.1",
+    "lodash": "^4.17.20",
     "min-dom": "^0.2.0",
     "object-refs": "^0.1.1"
   }
